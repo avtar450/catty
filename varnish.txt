@@ -4,9 +4,6 @@ https://www.digitalocean.com/community/tutorials/how-to-configure-varnish-cache-
 
 
 
-
-
-
 VARNISH INSTALLATION ON CENTOS 6
 
 reference: https://thornelabs.net/2015/03/29/setup-varnish-4-on-centos-6-as-a-caching-server-and-load-balancer.html
