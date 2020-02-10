@@ -1,0 +1,126 @@
+To make full use of varnish, it needs to be tuned:
+
+https://blog.pusher.com/speeding-up-your-website-using-varnish/
+
+
+default.vcl contents :
+
+
+
+#
+# This is an example VCL file for Varnish.
+#
+# It does not do anything by default, delegating control to the
+# builtin VCL. The builtin VCL is called when there is no explicit
+# return statement.
+#
+# See the VCL chapters in the Users Guide at https://www.varnish-cache.org/docs/
+# and http://varnish-cache.org/trac/wiki/VCLExamples for more examples.
+
+# Marker to tell the VCL compiler that this VCL has been adapted to the
+# new 4.0 format.
+vcl 4.0;
+
+# Default backend definition. Set this to point to your content server.
+backend default {
+    .host = "127.0.0.1";
+    .port = "8080";
+}
+
+sub vcl_recv {
+    # Happens before we check if we have this in cache already.
+    #
+    # Typically you clean up the request here, removing cookies you don't need,
+    # rewriting the request, etc.
+    # ------------------------------------------------------------------------
+    # Clean up the Accept-Encoding header
+    # ------------------------------------------------------------------------
+
+        if (req.http.Accept-Encoding) {
+            if (req.url ~ "\.(jpg|jpeg|png|gif|gz|tgz|bz2|tbz|mp3|ogg|swf|woff)$") {
+                unset req.http.Accept-Encoding;
+            } elsif (req.http.Accept-Encoding ~ "gzip") {
+                set req.http.Accept-Encoding = "gzip";
+            } elsif (req.http.Accept-Encoding ~ "deflate") {
+                set req.http.Accept-Encoding = "deflate";
+            } else {
+                # unknown algorithm (aka crappy browser)
+                unset req.http.Accept-Encoding;
+            }
+        }
+
+
+        # ------------------------------------------------------------------------
+        # Bypass Caching for GET and HEAD requests
+        # ------------------------------------------------------------------------
+
+        if (req.method != "GET" && req.method != "HEAD") {
+            return (pass);
+        }
+
+
+        # ------------------------------------------------------------------------
+        # Update some HTTP header values
+        # ------------------------------------------------------------------------
+
+        if (req.restarts == 0) {
+            if (req.http.X-Forwarded-For) {
+                set req.http.X-Forwarded-For = client.ip;
+            }
+        }    
+}
+
+sub vcl_backend_response {
+    # Happens after we have read the response headers from the backend.
+    #
+    # Here you clean the response headers, removing silly Set-Cookie headers
+    # and other mistakes your backend does.
+       # ------------------------------------------------------------------------
+        # Set TTL and grace period
+        # ------------------------------------------------------------------------
+
+        set beresp.ttl = 1h;
+        set beresp.grace = 10h;
+
+        if (bereq.method == "GET" && bereq.url ~ "\.(css|js|xml|gif|jpg|jpeg|swf|png|zip|ico|img|wmf|txt)$") {
+            set beresp.ttl = 30d;
+        }
+
+        # ------------------------------------------------------------------------
+        # Set how long the client should keep the item
+        # ------------------------------------------------------------------------
+
+        set beresp.http.cache-control = "max-age = 300";
+
+        if (bereq.url ~ ".(xml|gif|jpg|jpeg|swf|css|js|png|zip|ico|img|wmf|txt)$") {
+            set beresp.http.cache-control = "max-age = 604800";
+        }
+
+        return (deliver);
+
+}
+
+sub vcl_deliver {
+    # Happens when we have all the pieces we need, and are about to send the
+    # response to the client.
+    #
+    # You can do accounting or modifying the final object here.
+       # ------------------------------------------------------------------------
+        # Remove unnecessary response headers
+        # ------------------------------------------------------------------------
+
+        unset resp.http.Server;
+        unset resp.http.X-Powered-By;
+        unset resp.http.Via;
+        unset resp.http.X-Varnish;
+
+        # ------------------------------------------------------------------------
+        # Set a new response header to show if the cache attempt was a hit or miss
+        # ------------------------------------------------------------------------
+
+        if (obj.hits > 0) {
+            set resp.http.X-Cache = "HIT";
+        } else {
+            set resp.http.X-Cache = "MISS";
+        }
+}

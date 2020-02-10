@@ -1,0 +1,80 @@
+
+
+https://www.digitalocean.com/community/tutorials/how-to-configure-varnish-cache-4-0-with-ssl-termination-on-ubuntu-14-04
+
+
+
+
+
+
+VARNISH INSTALLATION ON CENTOS 6
+
+reference: https://thornelabs.net/2015/03/29/setup-varnish-4-on-centos-6-as-a-caching-server-and-load-balancer.html
+
+To get the latest version of Varnish, add their yum repository:
+
+cat << EOF >> /etc/yum.repos.d/varnish.repo
+[varnish]
+name=Varnish for Enterprise Linux 6
+baseurl=https://repo.varnish-cache.org/redhat/varnish-4.0/el6/
+enabled=1
+gpgkey=https://repo.varnish-cache.org/GPG-key.txt
+gpgcheck=1
+EOF
+
+Now, install Varnish:
+
+yum install -y varnish
+
+Configure Varnish
+
+There are two configuration files to edit, /etc/sysconfig/varnish and /etc/varnish/default.vcl.
+
+Assuming you want Varnish to run on port 80, open /etc/sysconfig/varnish and change VARNISH_LISTEN_PORT to the following:
+
+VARNISH_LISTEN_PORT=80
+
+Next, open /etc/varnish/default.vcl and use the following configuration. Be sure to replace PUBLIC_IP_ADDRESS with the IP address of your web servers.
+
+----------------------------------------------------------
+
+ERROR:
+error 503 backend fetch failed / Guru Meditation error
+
+Reference: http://www.technoreply.com/solving-dreaded-varnish-503-error/
+
+You may try to increase timeouts. Add/change these parameters in etc/varnish/default.vcl:
+
+.connect_timeout = 100s; # Wait a maximum of 1s for backend connection (Apache, Nginx, etc...)
+.first_byte_timeout = 500s; # Wait a maximum of 5s for the first byte to come from your backend
+.between_bytes_timeout = 200s; # Wait a maximum of 2s between each bytes sent
+
+------------------------------------------------------------------------
+
+To check varnish log, just type:
+varnishlog
+
+Note: Varnish saves its logs in memory only.
+
+=========================================================================
+
+if backend server has multiple domains, refer to https://www.digitalocean.com/community/questions/how-to-set-up-mutiple-domains-with-nginx-and-varnish-in-same-server
+
+For varnish 4.x
+
+backend default {
+    .host = "127.0.0.1";
+    .port = "8061";
+}
+
+sub vcl_recv {
+    if (req.http.host ~ "^(www\.)?mysite1\.com$") {
+        set req.backend_hint = default;
+    }
+
+    if (req.http.host ~ "^(www\.)?mysite2\.com$") {
+        set req.backend_hint = default;
+    }
+}
+
+ 
